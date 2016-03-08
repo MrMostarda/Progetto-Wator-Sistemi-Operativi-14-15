@@ -1,0 +1,241 @@
+   #!/bin/bash
+   #
+   # \file watorscript
+   # \author Matteo Anselmi
+   #  Si dichiara che il contenuto di questo file e' in ogni sua parte opera
+   #  originale dell' autore. 
+
+check_file(){
+	exec 4< $file
+	#leggo il numero di righe
+	read -u 4 row
+
+	#controllo se il numero di righe è composto solo da cifre
+	if [[ ! $row =~ ^[0-9]+$  ]]; then
+    		echo "NO" >&2
+		exec 4>&-
+		exit 128
+	fi
+
+	#leggo il numero di colonne
+	read -u 4 col
+
+	#controllo se il numero di righe è composto solo da cifre
+	if [[ ! $col =~ ^[0-9]+$  ]]; then
+    		echo "NO" >&2
+		exec 4>&-
+		exit 128
+	fi
+
+	#imposto IFS in modo tale che legga anche eventuali spazi o tab in fondo alla riga
+	old=$IFS
+	IFS=$'\n'
+
+	let i=0;
+	let ns=0; #numero squali
+	let nf=0; #numero pesci
+
+	# ciclo che mi legge le righe del file
+	while read -u 4 tmp;do
+
+		# controllo che ogni riga sia formata da un carattere valido (W,S,F) seguito da un unico spazio
+		#incremento j di 2 perche voglio controllore ogni volta il carattere e lo spazio successivo
+		for((j = 0; j < (($col-1)*2); j+=2));do	
+	
+			#parsing della riga			
+			char=${tmp:$j:1}
+			let off=$j+1
+			spazio=${tmp:$off:1}
+
+			#check dello spazio
+			if [[ $spazio != " " ]];then
+				echo "NO" >&2
+				IFS=$old
+				exec 4>&-
+				exit 128
+			fi
+
+			#check dei caratteri
+			case "$char" in
+				W) 	;;
+				
+				S)	((ns++));;
+				
+				F)	((nf++));;
+
+				*)	echo "NO" >&2
+					IFS=$old
+					exec 4>&-
+					exit 128
+					;;
+			esac
+		done
+		
+		#arrivati a questo punto devo controllare che ci sia un carattere e poi la riga deve terminare
+		#parsing
+		char=${tmp:$j:1}
+		let off=$j+1
+		newline=${tmp:$off:1}
+
+		#check terminazione riga
+		if ! [[ -z $newline ]];then
+			echo "NO" >&2
+			IFS=$old
+			exec 4>&-
+			exit 128
+		fi
+		
+		#check carattere
+		case "$char" in
+				W) 	;;
+				
+				S)	((ns++));;
+				
+				F)	((nf++));;
+
+				*)	echo "NO" >&2
+					IFS=$old
+					exec 4>&-
+					exit 128
+					;;
+		esac
+
+		#devo leggere  esattamente 'row' righe
+		((i++))
+		if [[ $i -gt $row ]];then
+			echo "NO" >&2
+			IFS=$old
+			exec 4>&-
+			exit 128
+		fi
+	done
+
+	#IFS deve tornare quello di prima
+	IFS=$old
+
+	#devo  aver letto esattamente 'row' righe
+	if [[ $i -ne $row ]];then
+			echo "NO" >&2
+			exec 4>&-
+			exit 128
+	else
+		 esito="OK"
+	fi
+	#chiudo il file descriptor
+	exec 4>&-	
+}
+
+help_vis(){
+	echo 	"		watorscript file
+		watorscript -s file
+		watorscript -f file
+		watorscript --help
+
+		Senza nessuna opzione lo script controlla soltanto che il formato del file sia corretto e
+		stampa l’esito del controllo (OK/NO) su standard error.
+		Le opzioni s ed f contano il numero di squali e di pesci rispettivamente e stampano il
+		valore sullo standard output come in
+		bash$ watorcript -s file
+		18" >&2
+}
+
+if [ $# -gt 0 ] && [ $# -lt 3 ];then
+
+	let f_flag=0
+	let s_flag=0
+	let file_flag=0
+	let help_flag=0
+	for arg;do
+		case "$arg" in
+			-f)		if [[ $f_flag -eq 1 ]];then
+						echo "argomenti errati" >&2
+						exit 128
+					else
+						let f_flag=1
+					fi
+					;;
+
+			-s)		if [[ $s_flag -eq 1 ]];then
+						echo "argomenti errati" >&2
+						exit 128
+					else
+						let s_flag=1
+					fi
+					;;
+
+			--help)		if [[ $help_flag -eq 1 ]];then
+						echo "argomenti errati" >&2
+						exit 128
+					else
+						let help_flag=1
+					fi
+					;;
+
+			*)
+					if [ -f $arg ] && [ -r $arg ] && [ -s $arg ];then
+						if [[ $file_flag -eq 0 ]];then
+						file=$arg
+						let file_flag=1
+
+						else
+							echo "argomenti non validi" >&2
+							exit 128
+						fi
+					
+					else
+						echo "file $arg non valido" >&2
+						exit 128
+					fi
+					;;
+		esac
+	done
+
+	if [[ help_flag -eq 1 ]];then
+		if [[ f_flag -eq 1 ]] || [[ s_flag -eq 1 ]] || [[ file_flag -eq 1 ]];then
+			echo "numero argomenti errato" >&2
+			exit 128
+		else
+			help_vis
+			exit 1
+		fi
+			
+	fi
+
+	if [[ file_flag -ne 1 ]];then
+		echo "file non presente" >&2
+		exit 128	
+	fi
+
+	if [[ s_flag -eq 1 ]];then
+		check_file
+		if [[ $esito = "OK" ]];then
+			echo "$ns"
+		fi
+
+	elif [[ f_flag -eq 1 ]];then
+		check_file
+		if [[ $esito = "OK" ]];then
+			echo "$nf"
+		fi
+
+	else
+		check_file
+		echo "$esito" >&2
+	fi
+
+
+else
+	echo "numero argomenti errato" >&2
+	exit 128
+
+fi
+
+exit 0
+
+
+
+
+
+
+
+
